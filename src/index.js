@@ -1,4 +1,6 @@
 import express from "express";
+import createError from "http-errors";
+import HttpStatus from "http-status-codes";
 import { PORT } from "./config.js";
 import { pool } from "./db.js";
 
@@ -6,18 +8,20 @@ const app = express();
 
 // Middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+app.use(errorHandler());
 
 // Routes
 app.get("/", (req, res) => {
   res.send("Welcome to the Login and Password Assignment System");
 });
 
-app.get("/users", async (req, res) => {
+app.get("/users", async (req, res, next) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM user");
-    res.json(rows);
+    const users = await getUsers();
+    res.json(users);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 });
 
@@ -25,77 +29,92 @@ app.get("/login", (req, res) => {
   res.send("Please log in:");
 });
 
-const findUserByName = async (username) => {
-  try {
-    const [rows] = await pool.query("SELECT * FROM user WHERE username = ?", [
-      username,
-    ]);
-
-    if (rows.length <= 0)
-      return res.status(404).json({ message: "User not found" });
-
-    return rows[0];
-  } catch (error) {
-    console.log(error.message);
-  }
-};
-
-const updatePasswordUserByName = async (username, password) => {
-  try {
-    const [result] = await pool.query(
-      "UPDATE user SET username = IFNULL(?, username), password = IFNULL(?, password) WHERE username = username",
-      [username, password, username]
-    );
-    if (result.affectedRows === 0) {
-      res.status(404).json({ message: "User not found" });
-    } else {
-      return result;
-    }
-  } catch (error) {
-    console.log(error.message);
-  }
-};
-
-app.post("/login", async (req, res) => {
+app.post("/login", async (req, res, next) => {
   const { username, password } = req.body;
 
-  const user = await findUserByName(username);
+  try {
+    const user = await getUserByUsername(username);
 
-  if (!user || user.password !== password) {
-    return res
-      .status(401)
-      .send("Error due to incorrect access (login incorrect)");
+    if (!user || user.password !== password) {
+      throw createError(HttpStatus.UNAUTHORIZED, "Incorrect login credentials");
+    }
+
+    res.send("Login successful");
+  } catch (error) {
+    next(error);
   }
-
-  res.send("Login successful");
 });
 
 app.get("/assign-password", (req, res) => {
   res.send("Assign a new password:");
 });
 
-app.post("/assign-password", (req, res) => {
+app.post("/assign-password", async (req, res, next) => {
   const { username, password } = req.body;
 
-  // Validate password
-  if (!password || password.length < 8 || !/^\d+$/.test(password)) {
-    return res
-      .status(400)
-      .send("Error due to incorrect access (password criteria not met)");
-  }
+  try {
+    if (!password || password.length < 8 || !/^\d+$/.test(password)) {
+      throw createError(HttpStatus.BAD_REQUEST, "Invalid password criteria");
+    }
 
-  const user = findUserByName(username);
-  if (!user) {
-    return res.status(404).send("User not found");
-  }
+    const user = await getUserByUsername(username);
 
-  const result = updatePasswordUserByName(username, password);
-  if (!result) {
-    return res.status(500).send("Internal error");
-  }
+    if (!user) {
+      throw createError(HttpStatus.NOT_FOUND, "User not found");
+    }
 
-  res.send("Password assigned successfully");
+    if (user.password !== null) {
+      throw createError(HttpStatus.BAD_REQUEST, "User already has a password");
+    }
+
+    const result = await updateUser(user.id, { password });
+
+    if (!result) {
+      throw createError(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        "Failed to assign password"
+      );
+    }
+
+    res.send("Password assigned successfully");
+  } catch (error) {
+    next(error);
+  }
 });
 
-app.listen(PORT);
-console.log("Server running on port", PORT);
+app.listen(PORT, () => {
+  console.log("Server running on port", PORT);
+});
+
+// Functions
+async function getUsers() {
+  const [rows] = await pool.query("SELECT * FROM user");
+  return rows;
+}
+
+async function getUserByUsername(username) {
+  const [rows] = await pool.query("SELECT * FROM user WHERE username = ?", [
+    username,
+  ]);
+  return rows.length > 0 ? rows[0] : null;
+}
+
+async function updateUser(id, data) {
+  const [result] = await pool.query(
+    "UPDATE user SET password = ? WHERE id = ?",
+    [data.password, id]
+  );
+  return result.affectedRows > 0 ? result : null;
+}
+
+function errorHandler() {
+  return (err, req, res, next) => {
+    if (err.statusCode) {
+      res.status(err.statusCode).json({ message: err.message });
+    } else {
+      res
+        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .json({ message: "Internal error" });
+    }
+  };
+}
