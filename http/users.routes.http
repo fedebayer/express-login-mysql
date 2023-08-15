@@ -1,0 +1,20 @@
+### get users
+GET http://localhost:3000/api/users
+
+### login
+POST http://localhost:3000/login
+Content-Type: application/json
+
+{
+  "username": "John",
+  "password": 12345678
+}
+
+### assign password
+POST http://localhost:3000/assign-password
+Content-Type: application/json
+
+{
+  "username": "Jack",
+  "password": 44345678
+}

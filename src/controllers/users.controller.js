@@ -40,11 +40,9 @@ export const assignPassword = async (req, res, next) => {
     if (!user) {
       throw createError(HttpStatus.NOT_FOUND, "User not found");
     }
-    console.log("password: " + user.password);
     if (user.password !== null) {
       throw createError(HttpStatus.BAD_REQUEST, "User already has a password");
     }
-    console.log("user: " + JSON.stringify(user));
 
     const result = await updateUserFromDB(user.user_id, password);
 
