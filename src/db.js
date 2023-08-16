@@ -1,4 +1,4 @@
-import { createPool } from "mysql2/promise";
+import { Sequelize } from "sequelize";
 import {
   DB_DATABASE,
   DB_HOST,
@@ -7,10 +7,32 @@ import {
   DB_USER,
 } from "./config.js";
 
-export const pool = createPool({
-  host: DB_HOST,
-  user: DB_USER,
-  password: DB_PASSWORD,
-  port: DB_PORT,
-  database: DB_DATABASE,
-});
+const sequelize = new Sequelize(
+  `mysql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_DATABASE}`,
+  {
+    dialect: "mysql",
+  }
+);
+const UserModel = sequelize.define(
+  "user",
+  {
+    user_id: {
+      type: Sequelize.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    username: {
+      type: Sequelize.STRING,
+      unique: true,
+    },
+    password: {
+      type: Sequelize.INTEGER,
+    },
+  },
+  {
+    tableName: "user",
+    timestamps: false, // exclude createdAt and updatedAt columns
+  }
+);
+
+export default UserModel;
