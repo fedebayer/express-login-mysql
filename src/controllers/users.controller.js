@@ -31,17 +31,14 @@ export const assignPassword = async (req, res, next) => {
   const { username, password } = req.body;
 
   try {
-    if (!password || password.length < 8 || !/^\d+$/.test(password)) {
-      throw createError(HttpStatus.BAD_REQUEST, "Invalid password criteria");
-    }
-
     const user = await getUserByUsernameFromDB(username);
 
-    if (!user) {
-      throw createError(HttpStatus.NOT_FOUND, "User not found");
+    if (!user || user.password !== null) {
+      throw createError(HttpStatus.BAD_REQUEST, "Incorrect access credentials");
     }
-    if (user.password !== null) {
-      throw createError(HttpStatus.BAD_REQUEST, "User already has a password");
+
+    if (!password || password.length < 8 || !/^\d+$/.test(password)) {
+      throw createError(HttpStatus.BAD_REQUEST, "Invalid password criteria");
     }
 
     const result = await updateUserFromDB(user.user_id, password);
