@@ -13,7 +13,7 @@ app.use(errorHandler());
 
 // Routes
 app.use("/api", indexRoutes);
-app.use("/", usersRoutes);
+app.use("/api/users", usersRoutes);
 
 function errorHandler() {
   return (err, req, res, next) => {
